@@ -44,9 +44,11 @@ func handle(w http.ResponseWriter, req *http.Request) {
 	name := req.URL.Query().Get("tumblr")
 	if name == "" {
 		http.Error(w, "Bad Request: tumblr parameter required", 400)
+		return
 	}
 	if !tumblrNameValidator.MatchString(name) {
-		http.Error(w, "Bad Request: tumblr parameter must match " + tumblrNameValidator.String(), 400)
+		http.Error(w, "Bad Request: tumblr parameter must match "+tumblrNameValidator.String(), 400)
+		return
 	}
 
 	mutex, exist := mutexMap[name]
@@ -59,20 +61,23 @@ func handle(w http.ResponseWriter, req *http.Request) {
 
 	err := os.RemoveAll(name)
 	if err != nil && !os.IsNotExist(err) {
-		http.Error(w, "Internal Server Error: " + err.Error(), 500)
+		http.Error(w, "Internal Server Error: "+err.Error(), 500)
+		return
 	}
 
 	cmd := exec.Command("python", "tumblr-utils/tumblr_backup.py", name)
 	err = cmd.Run()
 	if err != nil {
-		http.Error(w, "Internal Server Error: " + err.Error(), 500)
+		http.Error(w, "Internal Server Error: "+err.Error(), 500)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.zip"`, name))
 	err = archivefile.Archive(name, w, nil)
 	if err != nil {
-		http.Error(w, "Internal Server Error: " + err.Error(), 500)
+		http.Error(w, "Internal Server Error: "+err.Error(), 500)
+		return
 	}
 
 	_ = os.RemoveAll(name)
