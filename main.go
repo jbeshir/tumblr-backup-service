@@ -11,12 +11,14 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strings"
 	"sync"
 
 	archivefile "github.com/pierrre/archivefile/zip"
 )
 
 var config map[string]string
+var blacklist = make(map[string]struct{})
 var mutexMap = make(map[string]*sync.Mutex)
 
 var tumblrNameValidator = regexp.MustCompile("^[A-Za-z0-9_-]+$")
@@ -32,6 +34,10 @@ func main() {
 	err = json.Unmarshal(configBytes, &config)
 	if err != nil {
 		panic(err)
+	}
+
+	for _, tumblr := range strings.Split(config["blacklist"], ",") {
+		blacklist[tumblr] = struct{}{}
 	}
 
 	http.HandleFunc("/download", handle)
@@ -56,6 +62,11 @@ func handle(w http.ResponseWriter, req *http.Request) {
 	if !tumblrNameValidator.MatchString(name) {
 		http.Error(w, "Bad Request: tumblr parameter must match "+tumblrNameValidator.String(), 400)
 		glog.Error(fmt.Sprintf("%p", req), " bad request: ", "tumblr parameter did not match validator regexp")
+		return
+	}
+	if _, blacklisted := blacklist[name]; blacklisted {
+		http.Error(w, "Bad Request: tumblr blacklisted", 400)
+		glog.Error(fmt.Sprintf("%p", req), " bad request: ", "tumblr was blacklisted: ", name)
 		return
 	}
 
